@@ -24,8 +24,11 @@ var Bot = &mbotapi.BotAPI{
     }
 
 func main() {
+
     c := cron.New()
-    c.AddFunc("@daily", func() { reminderbot.SendReminders(Bot) })
+    // Europe/Iceland is same as GMT (which is 0 hours off of UTC)
+    // Run job every hour in GMT time
+    c.AddFunc("TZ=Europe/Iceland 0 0 * * * *", func() { reminderbot.SendReminders(Bot) })
     c.Start()
 
     callbacks, mux := Bot.SetWebhook("/webhook")

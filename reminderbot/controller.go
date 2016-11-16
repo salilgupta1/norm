@@ -26,8 +26,9 @@ func getHabits() []Habit {
     db := pg.Connect(Options)
     defer db.Close()
     var habits []Habit
+    hour := time.Now().UTC().Hour()
 
-    err := db.Model(&habits).Select()
+    err := db.Model(&habits).Column("time").Where("time = ?", hour).Select()
     if err != nil {
         panic(err.Error())
     }
@@ -35,7 +36,9 @@ func getHabits() []Habit {
     return habits
 }
 
-func createResponse(habit Habit) int64 {
+// select habit.* FROM schedules JOIN habits ON schedules.habit_id = habits.id;
+
+func createResponse(habit Habit) int {
     db := pg.Connect(Options)
     defer db.Close()
 
@@ -43,17 +46,16 @@ func createResponse(habit Habit) int64 {
                     RecipientID: habit.RecipientID,
                     HabitID: habit.ID,
                     Response: "No Response",
-                    SentAt: time.Now(),
                 }
 
-    id, err := db.Insert(&response)
+    err := db.Insert(&response)
     if err != nil {
         panic(err)
     }
-    return id
+    return response.ID
 }
 
-func generateTemplate(responseID int64) mbotapi.GenericTemplate {
+func generateTemplate(responseID int, habit Habit) mbotapi.GenericTemplate {
     generic := mbotapi.NewGenericTemplate()
     element := mbotapi.Element{
                         Title: "Reminder",
@@ -77,7 +79,7 @@ func SendReminders(bot *mbotapi.BotAPI) {
         log.Printf("[%#v] ", habit)
         go func (habit Habit) {
             responseID := createResponse(habit)
-            generic := generateTemplate(responseID)
+            generic := generateTemplate(responseID, habit)
             user := mbotapi.NewUserFromID(habit.RecipientID)
             bot.Send(user, generic, mbotapi.RegularNotif)
         }(habit)
@@ -94,7 +96,7 @@ func SaveUserResponse(callback mbotapi.Callback) string {
     response := Response{
                     ID: payload.ResponseID,
                     Response:   payload.UserResponse,
-                    RespondedAt: time.Unix(callback.Timestamp, 0),
+                    RespondedAt: time.Now().UTC(),
                 }
 
     err := db.Update(&response)
